@@ -91,15 +91,15 @@ ui <- bs4DashPage(
           valueBoxOutput("averageGWPBox", width = 6)
         ),
         fluidRow(
-          valueBoxOutput("numImplementedBox", width = 6),
-          valueBoxOutput("numNotImplementedBox", width = 6)
+          valueBoxOutput("above40mBox", width = 6),
+          valueBoxOutput("below40mBox", width = 6)
         ),
         fluidRow(
           box(width = 12,
               solidHeader = TRUE,
               status = "primary",
               title = "Distribution of African Countries with IFRS17 Implementation",
-              plotlyOutput("ifrs17_implementation_chart") %>% withSpinner())
+              plotlyOutput("ifrs17_implementation_chart", height = "400px") %>% withSpinner())
         ),
         fluidRow(
           box(
@@ -345,44 +345,44 @@ server <- function(input, output, session) {
   
   
   # Reactive expressions to calculate the number of countries that implemented/not implemented IFRS17
-  numImplemented <- reactive({
-    sum(ifrs17$Ifrs17_implementation == "Yes")
+  life_insurers_above_40M <- reactive({
+    sum(life_insurers$Category_Class == "Above $40M")
   })
   
-  numNotImplemented <- reactive({
-    sum(ifrs17$Ifrs17_implementation == "No")
+  life_insurers_below_40M <- reactive({
+    sum(life_insurers$Category_Class == "Below $40M")
   })
   
   totalCountries <- reactive({
-    numImplemented() + numNotImplemented()
+    life_insurers_above_40M() + life_insurers_below_40M()
   })
   
-  implementedPercentage <- reactive({
+  above40mPercentage <- reactive({
     if (totalCountries() == 0) return(0)
-    numImplemented() / totalCountries() * 100
+    life_insurers_above_40M() / totalCountries() * 100
   })
   
-  notImplementedPercentage <- reactive({
+  below40mPercentage <- reactive({
     if (totalCountries() == 0) return(0)
-    numNotImplemented() / totalCountries() * 100
+    life_insurers_below_40M() / totalCountries() * 100
   })
   
   # Output the values in the value boxes
-  output$numImplementedBox <- renderValueBox({
+  output$above40mBox <- renderValueBox({
     valueBox(
-      value = paste0(sprintf("%.2f", implementedPercentage()), "%"),
-      subtitle = "Percentage of African Countries with IFRS17 Implementation",
-      color = "success",
-      icon = icon("check-circle")
+      value = paste0(sprintf("%.0f", above40mPercentage()), "%"),
+      subtitle = "Percentage of Life Insurers with GWP Above 40M",
+      color = "info",
+      icon = icon("chart-line")
     )
   })
   
-  output$numNotImplementedBox <- renderValueBox({
+  output$below40mBox <- renderValueBox({
     valueBox(
-      value = paste0(sprintf("%.2f", notImplementedPercentage()), "%"),
-      subtitle = "Percentage of Countries Not Implemented IFRS17",
+      value = paste0(sprintf("%.0f", below40mPercentage()), "%"),
+      subtitle = "Percentage of Life Insurers with GWP Below 40M",
       color = "secondary",
-      icon = icon("times-circle")
+      icon = icon("exclamation-triangle")
     )
   })
   
@@ -402,7 +402,7 @@ server <- function(input, output, session) {
     valueBox(
       value = paste0("$", scales::comma(totalGWP()), " M"), # Format with comma and add "M" suffix
       subtitle = "Total Gross Written Premium",
-      color = "purple",
+      color = "success",
       icon = icon("dollar-sign")
     )
   })
@@ -416,7 +416,6 @@ server <- function(input, output, session) {
     )
   })
   
-  # Generate the plotly chart
   output$ifrs17_implementation_chart <- renderPlotly({
     # Summarize data
     implementation_data <- ifrs17 %>%
@@ -426,24 +425,27 @@ server <- function(input, output, session) {
     # Calculate percentages
     implementation_data$percentage <- implementation_data$Countries / sum(implementation_data$Countries) * 100
     
-    # Generate color palette
-    num_categories <- length(unique(implementation_data$Ifrs17_implementation))
-    colors <- hcl.colors(num_categories, "Set2")
+    # Generate the bar plot
+    p <- plot_ly(implementation_data, x = ~Ifrs17_implementation, y = ~percentage, type = 'bar',
+                 marker = list(color = 'rgba(0, 123, 255, 0.8)'),  # Primary blue color
+                 text = ~paste0(format(round(percentage, 1), nsmall = 1), '%'),  # Show percentage on bars
+                 textposition = 'outside',  # Adjust text position based on value
+                 hoverinfo = 'y+text')
     
-    # Create the donut chart
-    p <- plot_ly(implementation_data, labels = ~Ifrs17_implementation, values = ~Countries, type = 'pie', hole = 0.4,
-                 textposition = 'inside', 
-                 textinfo = 'label+value+percent',
-                 insidetextorientation = 'tangential',
-                 marker = list(colors = colors), 
-                 textfont = list(color = 'white', family = "Mulish", size = 12))
+    # Add customization
+    p <- p %>% layout(
+      title = "IFRS17 Implementation Status by African Countrys",
+      xaxis = list(title = "IFRS17 Implementation Status"),
+      yaxis = list(title = "Percentage (%)"),
+      showlegend = FALSE,
+      font = list(family = "Mulish", size = 10),  # Adjust font size
+      margin = list(b = 40, l = 75, r = 40, t = 100)  # Adjust margins if needed
+    )
     
-    # Add title and display the plot
-    p <- p %>% layout(showlegend = TRUE,
-                      font = list(family = "Mulish"),
-                      title = "IFRS17 Implementation Status by African Country's")
     p
   })
+  
+  
   
 }
 
